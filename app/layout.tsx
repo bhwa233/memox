@@ -55,6 +55,11 @@ export default function RootLayout({
   return (
     <>
       <html suppressHydrationWarning>
+        <head>
+          {/* 图片 CDN 预连接，加速首屏图片加载（Turso 由服务端命中，无需浏览器预连接） */}
+          <link rel="preconnect" href="https://gallery233.pages.dev" crossOrigin="anonymous" />
+          <link rel="dns-prefetch" href="https://gallery233.pages.dev" />
+        </head>
         <body>
           <ThemeProvider attribute="class"
             defaultTheme="dark"

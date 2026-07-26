@@ -2,11 +2,10 @@
 import useMemoStore from '@/store/memo';
 import { useMount } from 'ahooks';
 import InfiniteScroll from 'react-infinite-scroll-component';
-import { useRouter } from 'next/navigation';
 import useConfigStore from '@/store/config';
+import useFilterStore from '@/store/filter';
 import WaterfallList from '../src/components/MemoView/WaterfallList';
 import { PhotoProvider } from 'react-photo-view';
-import useCountStore from '../src/store/count';
 
 // 骨架卡片占位
 function MemoSkeleton() {
@@ -22,22 +21,15 @@ function MemoSkeleton() {
 
 export default function Main() {
     const { memos = [], fetchInitData, fetchPagedData, databases, isLoading } = useMemoStore();
-    const { fetchTags, getCount } = useCountStore();
-    const { validateAccessCode, config } = useConfigStore();
+    const { config } = useConfigStore();
     const { isSimpleMode } = config.generalConfig;
-    const router = useRouter();
 
     useMount(() => {
-        validateAccessCode().then((hasAccessCodePermission) => {
-            if (!hasAccessCodePermission) {
-                router.push('/login')
-            }
-        });
-
-        // 纯 CSR：客户端获取全部初始数据
-        fetchInitData();
-        fetchTags();
-        getCount();
+        // 首屏数据已由服务端注水（默认 filter）；鉴权由中间件负责。
+        // 仅当会话内存在非默认 filter（sessionStorage 恢复）时补拉一次以对齐视图。
+        if (useFilterStore.getState().hasFilter) {
+            fetchInitData();
+        }
     });
 
     // 首次加载且暂无数据时显示骨架屏

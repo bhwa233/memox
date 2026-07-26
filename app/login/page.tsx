@@ -15,22 +15,31 @@ import { useRouter } from 'next/navigation';
 import { useMount } from "ahooks"
 import PasswordInput from "@/components/PasswordInput"
 
+// 用密码换取 httpOnly cookie（中间件与 RSC 的鉴权凭据）
+async function setAccessCookie(accessCode: string): Promise<boolean> {
+    const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode }),
+    })
+    return res.ok
+}
+
 export default function Login() {
-    const { setAccessCodePermission, validateAccessCode } = useConfigStore();
+    const { setAccessCodePermission } = useConfigStore();
     const [password, setPassword] = useState('')
     const { toast } = useToast();
     const router = useRouter()
+    // 迁移 bootstrap：老用户密码仅存在 localStorage，自动换取 cookie 并跳回首页
     useMount(async () => {
-        validateAccessCode().then((hasAccessCodePermission) => {
-            if (hasAccessCodePermission) {
-                router.push('/')
-                return
-            }
-        });
+        const code = useConfigStore.getState().config.codeConfig.accessCode
+        if (!code) return
+        const ok = await setAccessCookie(code)
+        if (ok) router.push('/')
     })
     const onSubmit = async () => {
-        const hasAccessCodePermission = await setAccessCodePermission(password ?? '')
-        if (!hasAccessCodePermission) {
+        const ok = await setAccessCookie(password ?? '')
+        if (!ok) {
             toast({
                 variant: "destructive",
                 title: "密码错误",
@@ -39,6 +48,8 @@ export default function Login() {
             })
             return
         }
+        // 保持 localStorage store 同步（editCode 等其它逻辑仍依赖）
+        await setAccessCodePermission(password ?? '')
         router.push('/')
     }
 

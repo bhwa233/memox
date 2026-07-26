@@ -1,18 +1,52 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import Main from './Main';
 import NewMemoEditor from './NewMemoEditor';
-import { ShareCardDialog } from '@/components/ShareCard/ShareCardDialog';
-import { AIInsightDialog } from '@/components/AIInsightDialog';
-import { AISearchDialog } from '@/components/AISearchDialog';
-import { RandomWalkDialog } from '@/components/RandomWalkDialog';
 import LeftSide from '@/components/LeftSide';
 import MemoFilter from '@/components/MemoFilter';
 import MobileHeader from '../src/components/MobileHeader';
 import Tools from '@/components/Tools';
+import useMemoStore from '@/store/memo';
+import useCountStore from '@/store/count';
+import { MemosCount, Note, TagWithCount } from '@/api/type';
 
-export default function ClientLayout() {
+// 首屏不显示的弹窗按需加载，剥离重依赖出首包
+const ShareCardDialog = dynamic(
+    () => import('@/components/ShareCard/ShareCardDialog').then((m) => m.ShareCardDialog),
+    { ssr: false }
+);
+const AIInsightDialog = dynamic(
+    () => import('@/components/AIInsightDialog').then((m) => m.AIInsightDialog),
+    { ssr: false }
+);
+const AISearchDialog = dynamic(
+    () => import('@/components/AISearchDialog').then((m) => m.AISearchDialog),
+    { ssr: false }
+);
+const RandomWalkDialog = dynamic(
+    () => import('@/components/RandomWalkDialog').then((m) => m.RandomWalkDialog),
+    { ssr: false }
+);
+
+export interface InitialData {
+    memos: Note[];
+    total: number;
+    tags: TagWithCount[];
+    counts: MemosCount;
+}
+
+export default function ClientLayout({ initial }: { initial: InitialData }) {
+    // 服务端数据注水到 store（首渲染前，一次性），避免客户端二次拉取与闪烁
+    useState(() => {
+        useMemoStore.getState().initializeWithServerData({
+            items: initial.memos,
+            total: initial.total,
+        });
+        useCountStore.getState().initializeWithServerData(initial.tags, initial.counts);
+    });
+
     const [insightDialogOpen, setInsightDialogOpen] = useState(false);
     const [isInsightLoading, setIsInsightLoading] = useState(false);
     const [hasInsights, setHasInsights] = useState(false);
