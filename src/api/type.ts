@@ -1,5 +1,5 @@
-import { LinkType } from "../components/Editor/LinkAction";
-import type { Tag, Link, NewTag, NewLink } from "../db/schema";
+import { LinkType } from '../components/Editor/LinkAction';
+import type { Tag, Link, NewTag, NewLink } from '../db/schema';
 
 // 导出数据库类型（除了 NewMemo，我们会自定义）
 export type { Tag, Link, NewTag, NewLink };
@@ -8,7 +8,7 @@ export type { Tag, Link, NewTag, NewLink };
 export interface Memo {
   id: string;
   content: string;
-  images: string[];  // 在 API 层面已经被解析为数组
+  images: string[]; // 在 API 层面已经被解析为数组
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -30,21 +30,45 @@ export interface NewMemo {
 }
 
 interface Filter {
-  conjunction?: "and" | "or";
+  conjunction?: 'and' | 'or';
   conditions?: Array<{
     field_name: string;
-    operator: "is" | "isNot" | "contains" | "doesNotContain" | "isEmpty" | "isNotEmpty" | "isGreater" | "isGreaterEqual" | "isLess" | "isLessEqual" | "like" | "in";
+    operator:
+      | 'is'
+      | 'isNot'
+      | 'contains'
+      | 'doesNotContain'
+      | 'isEmpty'
+      | 'isNotEmpty'
+      | 'isGreater'
+      | 'isGreaterEqual'
+      | 'isLess'
+      | 'isLessEqual'
+      | 'like'
+      | 'in';
     value: Array<string>;
   }>;
   children?: Array<{
-    conjunction: "and" | "or";
+    conjunction: 'and' | 'or';
     conditions?: Array<{
       field_name: string;
-      operator: "is" | "isNot" | "contains" | "doesNotContain" | "isEmpty" | "isNotEmpty" | "isGreater" | "isGreaterEqual" | "isLess" | "isLessEqual" | "like" | "in";
+      operator:
+        | 'is'
+        | 'isNot'
+        | 'contains'
+        | 'doesNotContain'
+        | 'isEmpty'
+        | 'isNotEmpty'
+        | 'isGreater'
+        | 'isGreaterEqual'
+        | 'isLess'
+        | 'isLessEqual'
+        | 'like'
+        | 'in';
       value: Array<string>;
     }>;
   }>;
-};
+}
 export interface DailyStats {
   date: string;
   count: number;
@@ -58,11 +82,11 @@ export interface MemosCount {
   lastUpdated: string;
 }
 
-
 export type Note = Memo & {
   tags: Tag[];
   link?: Link;
-}
+  syncState?: 'pending';
+};
 
 export interface TagWithCount extends Tag {
   memoCount: number;
@@ -103,8 +127,6 @@ export interface ApiResponse<T = any> {
   timestamp?: string;
 }
 
-
-
 export interface CreateMemoRequest {
   content: string;
   images?: string[];
@@ -118,7 +140,5 @@ export interface UpdateMemoRequest {
   link?: LinkType;
   tags?: string[];
 }
-
-
 
 export type { Filter };

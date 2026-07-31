@@ -326,7 +326,10 @@ export const getMemosDataActions = async ({
   }
 };
 
-export const createNewMemo = async (newMemo: NewMemo) => {
+export const createNewMemo = async (
+  newMemo: NewMemo,
+  memoId: string = crypto.randomUUID(),
+) => {
   try {
     const { content, images, link, tags } = newMemo;
     const tagNames: string[] = tags && tags.length > 0 ? tags : [];
@@ -338,7 +341,7 @@ export const createNewMemo = async (newMemo: NewMemo) => {
     const memo = await client.transaction(async (tx) => {
       // 创建memo
       const memoData = {
-        id: crypto.randomUUID(),
+        id: memoId,
         content,
         images: JSON.stringify(images || []),
         createdAt: new Date().toISOString(),

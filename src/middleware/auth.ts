@@ -5,71 +5,97 @@ import { ApiResponse } from '../api/type';
 const API_KEY = process.env.ACCESS_CODE || 'memox-api-2024';
 
 // 创建统一的错误响应
-function createAuthErrorResponse(message: string, status: number = 401): NextResponse {
-    const response: ApiResponse = {
-        success: false,
-        error: message,
-        timestamp: new Date().toISOString(),
-    };
+function createAuthErrorResponse(
+  message: string,
+  status: number = 401,
+): NextResponse {
+  const response: ApiResponse = {
+    success: false,
+    error: message,
+    timestamp: new Date().toISOString(),
+  };
 
-    return NextResponse.json(response, { status });
+  return NextResponse.json(response, { status });
 }
 
 // 验证API Key
 function validateApiKey(apiKey: string): boolean {
-    return apiKey === API_KEY;
+  return apiKey === API_KEY;
 }
 
 // 从请求中提取API Key
 function extractApiKey(request: NextRequest): string | null {
-    // 优先从Authorization header获取
-    const authHeader = request.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        return authHeader.substring(7);
-    }
+  // 优先从Authorization header获取
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
 
-    // 从X-API-Key header获取
-    const apiKeyHeader = request.headers.get('X-API-Key');
-    if (apiKeyHeader) {
-        return apiKeyHeader;
-    }
+  // 从X-API-Key header获取
+  const apiKeyHeader = request.headers.get('X-API-Key');
+  if (apiKeyHeader) {
+    return apiKeyHeader;
+  }
 
-    // 从查询参数获取（不推荐，但提供兼容性）
-    const url = new URL(request.url);
-    const apiKeyParam = url.searchParams.get('apiKey');
-    if (apiKeyParam) {
-        return apiKeyParam;
-    }
+  // 从查询参数获取（不推荐，但提供兼容性）
+  const url = new URL(request.url);
+  const apiKeyParam = url.searchParams.get('apiKey');
+  if (apiKeyParam) {
+    return apiKeyParam;
+  }
 
-    return null;
+  return null;
 }
 
 // 统一API认证中间件
 export function requireApiAuth(request: NextRequest): NextResponse | null {
-    // 提取API Key
-    const apiKey = extractApiKey(request);
+  // 提取API Key
+  const apiKey = extractApiKey(request);
 
-    if (!apiKey) {
-        return createAuthErrorResponse(
-            'API Key required. Please provide it via Authorization header (Bearer token), X-API-Key header, or apiKey query parameter.',
-            401
-        );
-    }
+  if (!apiKey) {
+    return createAuthErrorResponse(
+      'API Key required. Please provide it via Authorization header (Bearer token), X-API-Key header, or apiKey query parameter.',
+      401,
+    );
+  }
 
-    // 验证API Key
-    const isValid = validateApiKey(apiKey);
+  // 验证API Key
+  const isValid = validateApiKey(apiKey);
 
-    if (!isValid) {
-        return createAuthErrorResponse('Invalid API Key', 401);
-    }
+  if (!isValid) {
+    return createAuthErrorResponse('Invalid API Key', 401);
+  }
 
-    // 验证通过，继续处理请求
+  // 验证通过，继续处理请求
+  return null;
+}
+
+// 浏览器内的同步请求使用 httpOnly 会话 cookie，不向 IndexedDB 暴露访问密码。
+// Origin 校验阻止其他站点借用户 cookie 发起跨站写入。
+export function requireWebSessionAuth(
+  request: NextRequest,
+): NextResponse | null {
+  const origin = request.headers.get('origin');
+  if (origin && origin !== request.nextUrl.origin) {
+    return createAuthErrorResponse('Invalid request origin', 403);
+  }
+
+  const expected = process.env.ACCESS_CODE;
+  if (!expected) {
     return null;
+  }
+
+  const cookie = request.cookies.get('accessCode')?.value;
+  if (cookie !== expected) {
+    return createAuthErrorResponse('Authentication required', 401);
+  }
+
+  return null;
 }
 
 // 检查用户是否已认证（用于在处理函数中使用）
 export function isAuthenticated(request: NextRequest): boolean {
-    const apiKey = extractApiKey(request);
-    if (!apiKey) return false;
-    return validateApiKey(apiKey);
+  const apiKey = extractApiKey(request);
+  if (!apiKey) return false;
+  return validateApiKey(apiKey);
 }
