@@ -700,6 +700,8 @@ async function writeStatisticsSnapshot(snapshot: {
         calculatedAt: now,
       },
     });
+
+  return now;
 }
 
 async function updateStatisticsCacheForMemoChange(
@@ -844,19 +846,12 @@ export const refreshStatisticsCache = async () => {
       count,
     }));
 
-    // 删除旧的统计数据
-    await client.delete(schema.memoStatistics);
-
-    // 插入新的统计数据
-    const now = new Date().toISOString();
-    await client.insert(schema.memoStatistics).values({
-      id: 'latest',
-      dailyStats: JSON.stringify(dailyStats),
-      totalMemos: total.toString(),
-      totalDays: daysCount.toString(),
-      totalWords: totalWords.toString(),
-      calculatedAt: now,
-      createdAt: now,
+    // upsert 单行快照：两个刷新撞在一起时后写者直接覆盖。
+    // 旧写法先 delete 全表再 insert，交错执行必然撞 memo_statistics.id 主键。
+    const calculatedAt = await writeStatisticsSnapshot({
+      dailyStats,
+      totalMemos: total,
+      totalWords,
     });
 
     console.log(
@@ -868,7 +863,7 @@ export const refreshStatisticsCache = async () => {
       total,
       daysCount,
       totalWords,
-      lastUpdated: new Date().toISOString(),
+      lastUpdated: calculatedAt,
     };
   } catch (error) {
     console.error('[统计缓存] 刷新统计数据失败:', error);
@@ -876,48 +871,88 @@ export const refreshStatisticsCache = async () => {
   }
 };
 
-// 获取按日期分组的笔记数量，获取笔记总数，获取记录天数
-// 使用智能缓存策略: 如果缓存未过期(30分钟内)则直接返回，否则重新计算
+// 30 分钟做一次全量对账，纠正增量更新累积的漂移。
+// 这是一致性要求而非新鲜度要求，所以过期后走后台重算，不阻塞读取。
+const STATS_CACHE_TTL = 30 * 60 * 1000;
+
+const EMPTY_MEMOS_COUNT: MemosCount = {
+  dailyStats: [],
+  total: 0,
+  daysCount: 0,
+  totalWords: 0,
+  lastUpdated: '',
+};
+
+// 读路径单飞：同一实例内并发命中过期缓存时只跑一次全表扫描。
+// 写路径（增删改后的刷新）仍直接调用 refreshStatisticsCache，
+// 否则可能复用一个在本次变更之前就已启动的计算，写回过期结果。
+let statsComputeInFlight: Promise<MemosCount> | null = null;
+
+function computeStatisticsOnce(): Promise<MemosCount> {
+  if (!statsComputeInFlight) {
+    statsComputeInFlight = refreshStatisticsCache().finally(() => {
+      statsComputeInFlight = null;
+    });
+  }
+  return statsComputeInFlight;
+}
+
+function toMemosCount(stats: schema.MemoStatistic): MemosCount {
+  return {
+    dailyStats: parseDailyStats(stats.dailyStats),
+    total: parseInt(stats.totalMemos) || 0,
+    daysCount: parseInt(stats.totalDays) || 0,
+    totalWords: parseInt(stats.totalWords) || 0,
+    lastUpdated: stats.calculatedAt,
+  };
+}
+
+// 获取按日期分组的笔记数量，获取笔记总数，获取记录天数。
+// stale-while-revalidate：有快照就立刻返回，过期只触发后台重算。
+// 全表扫描永远不落在用户的渲染路径上，统计失败也不会让首屏 500。
 export const getCountAction = async (): Promise<MemosCount> => {
+  let cached: schema.MemoStatistic | undefined;
+
   try {
-    // 尝试从缓存表读取统计数据
-    const cachedStats = await client
+    const rows = await client
       .select()
       .from(schema.memoStatistics)
       .where(eq(schema.memoStatistics.id, 'latest'))
       .limit(1);
+    cached = rows[0];
+  } catch (error) {
+    console.error('[统计缓存] 读取缓存失败:', error);
+    return EMPTY_MEMOS_COUNT;
+  }
 
-    if (cachedStats.length > 0) {
-      const stats = cachedStats[0];
-      const cacheAge = Date.now() - new Date(stats.calculatedAt).getTime();
-      const CACHE_TTL = 30 * 60 * 1000; // 30分钟缓存时间
+  if (cached) {
+    const cacheAge = Date.now() - new Date(cached.calculatedAt).getTime();
+    // calculatedAt 损坏时 cacheAge 为 NaN，按过期处理，否则会永远卡在旧数据上
+    const expired = !Number.isFinite(cacheAge) || cacheAge >= STATS_CACHE_TTL;
 
-      // 如果缓存未过期，直接返回
-      if (cacheAge < CACHE_TTL) {
-        console.log(
-          `[统计缓存] 使用缓存数据 (${Math.floor(cacheAge / 1000 / 60)}分钟前更新)`,
-        );
-        const dailyStats = JSON.parse(stats.dailyStats);
-
-        return {
-          dailyStats,
-          total: parseInt(stats.totalMemos),
-          daysCount: parseInt(stats.totalDays),
-          totalWords: parseInt(stats.totalWords),
-          lastUpdated: stats.calculatedAt,
-        };
-      }
-
-      console.log('[统计缓存] 缓存已过期，重新计算...');
+    if (expired) {
+      console.log('[统计缓存] 缓存已过期，转后台重算，本次先返回旧数据');
+      waitUntil(
+        computeStatisticsOnce().catch((error) => {
+          console.error('[统计缓存] 后台刷新失败:', error);
+        }),
+      );
     } else {
-      console.log('[统计缓存] 首次计算统计数据...');
+      console.log(
+        `[统计缓存] 使用缓存数据 (${Math.floor(cacheAge / 1000 / 60)}分钟前更新)`,
+      );
     }
 
-    // 缓存不存在或已过期，重新计算
-    return await refreshStatisticsCache();
+    return toMemosCount(cached);
+  }
+
+  // 快照行不存在（首次部署等），只能同步算一次
+  console.log('[统计缓存] 首次计算统计数据...');
+  try {
+    return await computeStatisticsOnce();
   } catch (error) {
-    console.error('[统计缓存] 获取统计数据失败:', error);
-    throw new Error('获取统计数据失败');
+    console.error('[统计缓存] 首次计算失败:', error);
+    return EMPTY_MEMOS_COUNT;
   }
 };
 
