@@ -9,9 +9,8 @@ import {
 import { Desc } from '@/store/filter';
 import type { MemosCount } from '@/api/type';
 
-// 每次请求实时渲染：数据要新、页面在鉴权后，禁止静态缓存
-export const dynamic = 'force-dynamic';
-
+// Cache Components 下数据默认动态，无需 force-dynamic：
+// 外壳预渲染成静态骨架，BootstrapData 的 DB 读取在请求时流式补上。
 const EMPTY_COUNTS: MemosCount = {
   dailyStats: [],
   total: 0,
