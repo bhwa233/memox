@@ -12,9 +12,9 @@ const withSerwist = withSerwistInit({
 
 const baseConfig: NextConfig = {
     reactStrictMode: true,
-    // Cache Components：静态外壳（骨架/侧边栏）构建期预渲染走 CDN，
-    // Suspense 内的数据在请求时流式下发。同时启用 PPR 与 `use cache`。
-    cacheComponents: true,
+    // Cache Components remains experimental in OpenNext. Keep the data-rendering
+    // path dynamic on Workers until the adapter fully supports this Next feature.
+    cacheComponents: false,
     // 添加空的 turbopack 配置以消除警告
     turbopack: {},
     logging: {

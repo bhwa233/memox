@@ -50,6 +50,11 @@ next-env.d.ts
 public/sw*
 public/swe-worker*
 
+# OpenNext Cloudflare build output
+.open-next
+.wrangler
+cloudflare-env.d.ts
+
 .vercel
 .env*.local
 .env*

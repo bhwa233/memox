@@ -6,7 +6,7 @@ import { db as client } from '../db';
 import * as schema from '../db/schema';
 import { generateTags, type TagGenerationResult } from './aiActions';
 import { generateEmbedding } from '../services/embeddingService';
-import { waitUntil } from '@vercel/functions';
+import { after } from 'next/server';
 import {
   eq,
   and,
@@ -394,18 +394,18 @@ export const createNewMemo = async (
     console.log(
       `[Server Action] 为新创建的 memo ${memo.id} 启动后台AI标签生成`,
     );
-    waitUntil(regenerateMemeTags(memo.id));
+    after(() => regenerateMemeTags(memo.id));
 
     // 异步生成embedding，不阻塞响应
     console.log(
       `[Server Action] 为新创建的 memo ${memo.id} 启动后台embedding生成`,
     );
-    waitUntil(generateMemoEmbedding(memo.id, memo.content));
+    after(() => generateMemoEmbedding(memo.id, memo.content));
 
     console.log(
       `[Server Action] 为新创建的 memo ${memo.id} 启动统计缓存增量更新`,
     );
-    waitUntil(
+    after(() =>
       updateStatisticsCacheForMemoChange('add', {
         content: memo.content,
         createdAt: memo.createdAt,
@@ -438,7 +438,7 @@ export const deleteMemo = async (id: string) => {
 
     if (memoToDelete && deletedRows.length > 0) {
       console.log(`[Server Action] 为删除的 memo ${id} 启动统计缓存增量更新`);
-      waitUntil(updateStatisticsCacheForMemoChange('remove', memoToDelete));
+      after(() => updateStatisticsCacheForMemoChange('remove', memoToDelete));
     }
   } catch (error) {
     console.error('软删除失败:', error);
@@ -555,12 +555,12 @@ export const updateMemoAction = async (id: string, newMemo: NewMemo) => {
     });
 
     // 异步处理标签生成和更新 - 不阻塞主响应
-    waitUntil(regenerateMemeTags(id));
+    after(() => regenerateMemeTags(id));
 
     // 异步生成新的embedding - 不阻塞主响应
-    waitUntil(generateMemoEmbedding(id, content));
+    after(() => generateMemoEmbedding(id, content));
 
-    waitUntil(
+    after(() =>
       updateStatisticsCacheForContentChange(
         updatedMemo.previousContent,
         content,
@@ -936,7 +936,7 @@ export const getCountAction = async (): Promise<MemosCount> => {
 
     if (expired) {
       console.log('[统计缓存] 缓存已过期，转后台重算，本次先返回旧数据');
-      waitUntil(
+      after(() =>
         computeStatisticsOnce().catch((error) => {
           console.error('[统计缓存] 后台刷新失败:', error);
         }),
@@ -969,7 +969,7 @@ export const clearAllDataAction = async () => {
       .update(schema.memos)
       .set({ deletedAt: new Date().toISOString() })
       .where(isNull(schema.memos.deletedAt));
-    waitUntil(refreshStatisticsCache());
+    after(() => refreshStatisticsCache());
     return { success: true };
   } catch (error) {
     console.error('清空数据失败:', error);

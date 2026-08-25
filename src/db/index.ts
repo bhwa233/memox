@@ -1,10 +1,16 @@
-import { drizzle } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql/web';
+import { createClient } from '@libsql/client/web';
 import * as schema from './schema';
 
-// Create the database client - use Turso if credentials are available, otherwise local
+// Cloudflare Workers uses the Web client. Prefer Turso's HTTPS endpoint so requests
+// use fetch rather than a shared WebSocket connection during concurrent RSC queries.
+const databaseUrl = (
+  process.env.TURSO_DATABASE_URL || 'file:./local.db'
+).replace(/^libsql:\/\//, 'https://');
+
+// Turso credentials are required when this client runs on Cloudflare Workers.
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:./local.db',
+  url: databaseUrl,
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 

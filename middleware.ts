@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // 访问密码校验：cookie `accessCode` 与 env.ACCESS_CODE 比对。
 // 未配置 ACCESS_CODE 时不设门禁，全放行。
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const expected = process.env.ACCESS_CODE;
   if (!expected) {
     return NextResponse.next();
