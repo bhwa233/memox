@@ -3,6 +3,10 @@
 import { callAI } from '../services';
 import { getTagsAction } from './dbActions';
 
+export type TagGenerationResult =
+    | { ok: true; tags: string[] }
+    | { ok: false; error: string };
+
 const tagPrompt = (tags: string[]) => `
 您是一位专业的内容分析助手，擅长提取文本核心主题并生成精准的标签。
 标签生成必须遵守以下规则：
@@ -38,7 +42,7 @@ const polishPrompt = () => `
 `;
 
 
-export const generateTags = async (content: string): Promise<string[]> => {
+export const generateTags = async (content: string): Promise<TagGenerationResult> => {
     try {
         const tags = await getTagsAction();
         const rolePrompt = tagPrompt(tags.map(tag => tag.name));
@@ -51,11 +55,21 @@ export const generateTags = async (content: string): Promise<string[]> => {
             temperature: 0.1
         });
         console.log('ai out:', response.content);
-        const result = JSON.parse(response.content);
-        return result.tags || [];
+        const result: { tags?: unknown } = JSON.parse(response.content);
+        if (!Array.isArray(result.tags)) {
+            return { ok: false, error: 'AI 返回的标签格式无效，请稍后重试' };
+        }
+
+        return {
+            ok: true,
+            tags: result.tags
+                .filter((tag): tag is string => typeof tag === 'string')
+                .map((tag) => tag.trim())
+                .filter(Boolean),
+        };
     } catch (error) {   
         console.error('生成标签时出错:', error);
-        return [];
+        return { ok: false, error: 'AI 标签生成失败，请稍后重试' };
     }
 };
 

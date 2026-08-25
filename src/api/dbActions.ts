@@ -4,7 +4,7 @@ import { Filter, MemosCount, NewMemo, Note } from './type';
 import { NewMemo as DrizzleNewMemo } from '../db/schema';
 import { db as client } from '../db';
 import * as schema from '../db/schema';
-import { generateTags } from './aiActions';
+import { generateTags, type TagGenerationResult } from './aiActions';
 import { generateEmbedding } from '../services/embeddingService';
 import { waitUntil } from '@vercel/functions';
 import {
@@ -71,6 +71,10 @@ type MemoTagRow = {
 };
 
 type DbTransaction = Parameters<Parameters<typeof client.transaction>[0]>[0];
+
+export type TagRegenerationResult =
+  | { ok: true; tags: (typeof schema.tags.$inferSelect)[] }
+  | { ok: false; error: string };
 
 function buildMemoTagsMap(tagRows: MemoTagRow[]) {
   const tagsByMemoId = new Map<
@@ -1026,40 +1030,53 @@ export const updateMemoTagsAction = async (memoId: string) => {
 
     if (!memo) {
       console.error(`Memo with id ${memoId} not found.`);
-      return null;
+      return { ok: false, error: '笔记不存在或已被删除' } satisfies TagRegenerationResult;
     }
 
     if (!memo.content || memo.content.trim().length < 5) {
       console.log(`Content too short for tag generation: ${memoId}`);
-      return memo;
+      return {
+        ok: false,
+        error: '笔记至少需要 5 个字符才能生成标签',
+      } satisfies TagRegenerationResult;
     }
 
     // 同步生成标签（用户主动触发时可以等待）
-    const tagNames = await generateTags(memo.content);
-
-    if (tagNames && tagNames.length > 0) {
-      await client.transaction(async (tx) => {
-        // 删除现有的标签关联
-        await tx
-          .delete(schema.memoTags)
-          .where(eq(schema.memoTags.memoId, memoId));
-
-        const resolvedTags = await resolveTagsForNames(tx, tagNames);
-        if (resolvedTags.length > 0) {
-          await tx.insert(schema.memoTags).values(
-            resolvedTags.map((tag) => ({
-              memoId: memoId,
-              tagId: tag.id,
-            })),
-          );
-        }
-      });
+    const generated = await generateTags(memo.content);
+    if (!generated.ok) {
+      return generated;
     }
 
-    return { id: memoId, tags: tagNames };
+    if (generated.tags.length === 0) {
+      return { ok: false, error: 'AI 未生成匹配的标签，请补充内容后重试' };
+    }
+
+    await client.transaction(async (tx) => {
+      // 仅在成功生成标签后替换已有标签，避免空结果清空用户数据。
+      await tx
+        .delete(schema.memoTags)
+        .where(eq(schema.memoTags.memoId, memoId));
+
+      const resolvedTags = await resolveTagsForNames(tx, generated.tags);
+      await tx.insert(schema.memoTags).values(
+        resolvedTags.map((tag) => ({
+          memoId: memoId,
+          tagId: tag.id,
+        })),
+      );
+    });
+
+    const resolvedTags = await client
+      .select()
+      .from(schema.tags)
+      .where(inArray(schema.tags.name, generated.tags));
+    return { ok: true, tags: resolvedTags } satisfies TagRegenerationResult;
   } catch (error) {
     console.error(`Error updating tags for memo ${memoId}:`, error);
-    return null;
+    return {
+      ok: false,
+      error: '保存 AI 标签失败，请稍后重试',
+    } satisfies TagRegenerationResult;
   }
 };
 
@@ -1086,46 +1103,57 @@ export const regenerateMemeTags = async (memoId: string) => {
 
     if (!memo) {
       console.error(`Memo with id ${memoId} not found.`);
-      return null;
+      return {
+        ok: false,
+        error: '笔记不存在或已被删除',
+      } satisfies TagRegenerationResult;
     }
 
     // if content is too short, no need to call AI
     if (!memo.content || memo.content.trim().length < 5) {
       console.log(`Content too short for tag generation: ${memoId}`);
-      return memo;
+      return {
+        ok: false,
+        error: '笔记至少需要 5 个字符才能生成标签',
+      } satisfies TagRegenerationResult;
     }
 
-    const tagNames = await generateTags(memo.content);
+    const generated: TagGenerationResult = await generateTags(memo.content);
+    if (!generated.ok) {
+      return generated;
+    }
+
+    if (generated.tags.length === 0) {
+      return {
+        ok: false,
+        error: 'AI 未生成匹配的标签，请补充内容后重试',
+      } satisfies TagRegenerationResult;
+    }
 
     const updatedTags = await client.transaction(async (tx) => {
-      // 删除现有的标签关联
+      // 仅在成功生成标签后替换已有标签，避免空结果清空用户数据。
       await tx
         .delete(schema.memoTags)
         .where(eq(schema.memoTags.memoId, memoId));
 
-      const tags = await resolveTagsForNames(tx, tagNames);
-      if (tags.length > 0) {
-        await tx.insert(schema.memoTags).values(
-          tags.map((tag) => ({
-            memoId: memoId,
-            tagId: tag.id,
-          })),
-        );
-      }
+      const tags = await resolveTagsForNames(tx, generated.tags);
+      await tx.insert(schema.memoTags).values(
+        tags.map((tag) => ({
+          memoId: memoId,
+          tagId: tag.id,
+        })),
+      );
       return tags;
     });
 
-    const updatedMemo = {
-      ...memo,
-      tags: updatedTags,
-      link: memo.link?.id ? memo.link : null,
-    };
-
-    console.log(`Tags updated for memo: ${memoId}`, tagNames);
-    return updatedMemo;
+    console.log(`Tags updated for memo: ${memoId}`, generated.tags);
+    return { ok: true, tags: updatedTags } satisfies TagRegenerationResult;
   } catch (error) {
     console.error(`Error regenerating tags for memo ${memoId}:`, error);
-    return null;
+    return {
+      ok: false,
+      error: '保存 AI 标签失败，请稍后重试',
+    } satisfies TagRegenerationResult;
   }
 };
 
