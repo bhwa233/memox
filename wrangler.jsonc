@@ -2,12 +2,19 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "memox",
   "main": ".open-next/worker.js",
+  "workers_dev": true,
   "compatibility_date": "2026-08-25",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "routes": [
+    {
+      "pattern": "memox.bhwa233.com",
+      "custom_domain": true
+    }
+  ],
   "observability": {
     "enabled": true
   }
