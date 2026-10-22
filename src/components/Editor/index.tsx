@@ -131,12 +131,11 @@ const Editor = ({
       if (editor) {
         const value = editor.value;
         const newValue = value.slice(0, start) + `${text} ` + value.slice(end);
-        editor.value = newValue;
         handleContentChange(newValue);
 
         setTimeout(() => {
-          editor.selectionStart = start + text.length + offset;
-          editor.selectionEnd = start + text.length + offset;
+          const cursor = start + text.length + offset;
+          editor.setSelectionRange(cursor, cursor);
           editor.focus();
         }, 100);
       }
@@ -151,8 +150,7 @@ const Editor = ({
     if (editorRef) {
       editorRef.focus();
       const textLength = editorRef.value.length;
-      editorRef.selectionStart = textLength;
-      editorRef.selectionEnd = textLength;
+      editorRef.setSelectionRange(textLength, textLength);
     }
   };
 

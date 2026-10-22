@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import useCountStore from '@/store/count';
 import getCaretCoordinates from 'textarea-caret';
@@ -21,8 +21,6 @@ const TagSuggestions = ({ editorRef: editor, replaceText, content, onContentChan
   const [position, setPosition] = useState<Position | null>(null);
   const { tags } = useCountStore();
   const [selected, select] = useState(0);
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
   const hide = () => setPosition(null);
   const [currentWord, setCurrentWord] = useState('');
 
@@ -111,7 +109,8 @@ const TagSuggestions = ({ editorRef: editor, replaceText, content, onContentChan
     if (!isVisible) return;
     e.preventDefault();
     e.stopPropagation();
-    autocomplete(suggestions[selectedRef.current]);
+    // ahooks keeps this event callback current; a second selection ref is not needed.
+    autocomplete(suggestions[selected]);
   }, { target: editor });
 
   // Handle escape

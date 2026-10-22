@@ -101,7 +101,6 @@ export default function WaterfallList({ memos, isSimpleMode }: WaterfallListProp
         );
 
         grid.refreshItems().layout();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [memos]);
 
     // 卡片内图片异步加载会改变高度：load 事件不冒泡，用捕获阶段监听并防抖重排

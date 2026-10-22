@@ -5,7 +5,8 @@ import { motion } from "motion/react";
 import {
   type CSSProperties,
   type ElementType,
-  type JSX,
+  type HTMLAttributes,
+  forwardRef,
   memo,
   useMemo,
 } from "react";
@@ -18,6 +19,15 @@ export type TextShimmerProps = {
   spread?: number;
 };
 
+// Create Motion's adapter once so changing the text never remounts the element.
+const ShimmerElement = forwardRef<HTMLElement, HTMLAttributes<HTMLElement> & {
+  as?: ElementType;
+}>(({ as: Component = 'p', ...props }, ref) => (
+  <Component {...props} ref={ref} />
+));
+ShimmerElement.displayName = 'ShimmerElement';
+const MotionShimmer = motion.create(ShimmerElement);
+
 const ShimmerComponent = ({
   children,
   as: Component = "p",
@@ -25,17 +35,14 @@ const ShimmerComponent = ({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) => {
-  const MotionComponent = motion.create(
-    Component as keyof JSX.IntrinsicElements
-  );
-
   const dynamicSpread = useMemo(
     () => (children?.length ?? 0) * spread,
     [children, spread]
   );
 
   return (
-    <MotionComponent
+    <MotionShimmer
+      as={Component}
       animate={{ backgroundPosition: "0% center" }}
       className={cn(
         "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
@@ -57,7 +64,7 @@ const ShimmerComponent = ({
       }}
     >
       {children}
-    </MotionComponent>
+    </MotionShimmer>
   );
 };
 

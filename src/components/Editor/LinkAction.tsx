@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Popover,
   PopoverContent,
@@ -31,11 +31,13 @@ export default function LinkAction({ link, setLink }: Props) {
   const [text, setText] = useState(link?.text ?? '');
   const [loading, setLoading] = useState(false);
 
-  // Update local state when link prop changes
-  useEffect(() => {
+  const [previousLink, setPreviousLink] = useState(link);
+  // Reset the draft before children render a different saved link.
+  if (previousLink !== link) {
+    setPreviousLink(link);
     setUrl(link?.url ?? '');
     setText(link?.text ?? '');
-  }, [link]);
+  }
 
   const handleSubmit = async () => {
     setLoading(true);

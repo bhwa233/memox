@@ -48,6 +48,7 @@ const MemoView = ({
   }, [images]);
   const [isEdited, setIsEdited] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [displayTime] = useState(() => Date.now());
 
   const time = useMemo(() => {
     return updatedAt ? convertGMTDateToLocal(updatedAt) : ' ';
@@ -82,11 +83,9 @@ const MemoView = ({
     },
   });
 
-  const isRecentTime = useMemo(() => {
-    return createdAt
-      ? Date.now() - new Date(createdAt).getTime() < 1000 * 60 * 60 * 24
-      : false;
-  }, [createdAt]);
+  const isRecentTime = createdAt
+    ? displayTime - new Date(createdAt).getTime() < 1000 * 60 * 60 * 24
+    : false;
 
   const handleEdit = useCallback(() => setIsEdited(true), []);
   const handleCancel = useCallback(() => setIsEdited(false), []);

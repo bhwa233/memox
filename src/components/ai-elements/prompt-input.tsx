@@ -68,6 +68,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 // ============================================================================
@@ -198,7 +199,9 @@ export function PromptInputProvider({
 
   // Keep a ref to attachments for cleanup on unmount (avoids stale closure)
   const attachmentsRef = useRef(attachmentFiles);
-  attachmentsRef.current = attachmentFiles;
+  useEffect(() => {
+    attachmentsRef.current = attachmentFiles;
+  }, [attachmentFiles]);
 
   // Cleanup blob URLs on unmount to prevent memory leaks
   useEffect(() => {
@@ -482,7 +485,9 @@ export const PromptInput = ({
 
   // Keep a ref to files for cleanup on unmount (avoids stale closure)
   const filesRef = useRef(files);
-  filesRef.current = files;
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
 
   const openFileDialogLocal = useCallback(() => {
     inputRef.current?.click();
@@ -666,7 +671,6 @@ export const PromptInput = ({
         }
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup only on unmount; filesRef always current
     [usingProvider]
   );
 
@@ -1115,6 +1119,14 @@ export type PromptInputSpeechButtonProps = ComponentProps<
   onTranscriptionChange?: (text: string) => void;
 };
 
+// Browser capability is an external snapshot. The server renders it unavailable
+// so hydration agrees before React checks support in the browser.
+const subscribeToSpeechSupport = () => () => {};
+const getSpeechSupport = () =>
+  typeof window.SpeechRecognition === 'function' ||
+  typeof window.webkitSpeechRecognition === 'function';
+const getServerSpeechSupport = () => false;
+
 export const PromptInputSpeechButton = ({
   className,
   textareaRef,
@@ -1122,16 +1134,13 @@ export const PromptInputSpeechButton = ({
   ...props
 }: PromptInputSpeechButtonProps) => {
   const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState<SpeechRecognition | null>(
-    null
+  const supportsSpeech = useSyncExternalStore(
+    subscribeToSpeechSupport, getSpeechSupport, getServerSpeechSupport,
   );
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
-    if (
-      typeof window !== "undefined" &&
-      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window)
-    ) {
+    if (supportsSpeech) {
       const SpeechRecognition =
         window.SpeechRecognition || window.webkitSpeechRecognition;
       const speechRecognition = new SpeechRecognition();
@@ -1176,17 +1185,20 @@ export const PromptInputSpeechButton = ({
       };
 
       recognitionRef.current = speechRecognition;
-      setRecognition(speechRecognition);
+      return () => {
+        speechRecognition.onstart = null;
+        speechRecognition.onend = null;
+        speechRecognition.onresult = null;
+        speechRecognition.onerror = null;
+        speechRecognition.stop();
+        recognitionRef.current = null;
+        setIsListening(false);
+      };
     }
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, [textareaRef, onTranscriptionChange]);
+  }, [supportsSpeech, textareaRef, onTranscriptionChange]);
 
   const toggleListening = useCallback(() => {
+    const recognition = recognitionRef.current;
     if (!recognition) {
       return;
     }
@@ -1196,7 +1208,7 @@ export const PromptInputSpeechButton = ({
     } else {
       recognition.start();
     }
-  }, [recognition, isListening]);
+  }, [isListening]);
 
   return (
     <PromptInputButton
@@ -1205,7 +1217,7 @@ export const PromptInputSpeechButton = ({
         isListening && "animate-pulse bg-accent text-accent-foreground",
         className
       )}
-      disabled={!recognition}
+      disabled={!supportsSpeech}
       onClick={toggleListening}
       {...props}
     >

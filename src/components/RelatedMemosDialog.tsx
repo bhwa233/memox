@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useRequest } from 'ahooks';
 import {
     Dialog,
     DialogContent,
@@ -38,17 +39,25 @@ interface RelatedMemosDialogProps {
     onMemoClick?: (memoId: string) => void;
 }
 
-export function RelatedMemosDialog({
+export function RelatedMemosDialog(props: RelatedMemosDialogProps) {
+    return (
+        <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+            <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+                <RelatedMemosContent key={props.memoId} {...props} />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// DialogContent owns this request's lifetime: closing unmounts the session,
+// and opening it again starts with fresh loading state and no previous results.
+function RelatedMemosContent({
     open,
     onOpenChange,
     memoId,
     originalMemo,
     onMemoClick
 }: RelatedMemosDialogProps) {
-    const [isLoading, setIsLoading] = useState(false);
-    const [relatedMemos, setRelatedMemos] = useState<RelatedMemo[]>([]);
-    const [error, setError] = useState<string | null>(null);
-    const [processingTime, setProcessingTime] = useState<number | null>(null);
 
     // Helper function to format date
     const formatDisplayDate = (dateString: string | null): string => {
@@ -64,12 +73,7 @@ export function RelatedMemosDialog({
         }
     };
 
-    const fetchRelatedMemos = async () => {
-        if (!memoId) return;
-
-        setIsLoading(true);
-        setError(null);
-
+    const { data, loading: isLoading, error: requestError, refresh: fetchRelatedMemos } = useRequest(async () => {
         try {
             const response = await fetch('/api/ai/related', {
                 method: 'POST',
@@ -85,8 +89,7 @@ export function RelatedMemosDialog({
                 throw new Error((data as any).error || 'Failed to fetch related memos');
             }
 
-            setRelatedMemos(data.relatedMemos);
-            setProcessingTime(data.processingTime);
+            return data;
         } catch (err: any) {
             console.error('Error fetching related memos:', err);
             let errorMessage = err.message || 'Failed to fetch related memos';
@@ -100,27 +103,12 @@ export function RelatedMemosDialog({
                 errorMessage = '找不到指定的笔记';
             }
 
-            setError(errorMessage);
-        } finally {
-            setIsLoading(false);
+            throw new Error(errorMessage);
         }
-    };
-
-    // Fetch related memos when dialog opens
-    useEffect(() => {
-        if (open && memoId) {
-            fetchRelatedMemos();
-        }
-    }, [open, memoId]);
-
-    // Reset state when dialog closes
-    useEffect(() => {
-        if (!open) {
-            setRelatedMemos([]);
-            setError(null);
-            setProcessingTime(null);
-        }
-    }, [open]);
+    }, { ready: open && !!memoId });
+    const relatedMemos = data?.relatedMemos ?? [];
+    const processingTime = data?.processingTime ?? null;
+    const error = requestError?.message ?? null;
 
     const handleMemoClick = (clickedMemoId: string) => {
         if (onMemoClick) {
@@ -133,8 +121,7 @@ export function RelatedMemosDialog({
         fetchRelatedMemos();
     };
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+        <>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Icon.Link className="w-5 h-5" />
@@ -295,7 +282,6 @@ export function RelatedMemosDialog({
                         )}
                     </div>
                 </ScrollArea>
-            </DialogContent>
-        </Dialog>
+        </>
     );
-} 
+}

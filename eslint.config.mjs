@@ -17,13 +17,6 @@ export default defineConfig([
       'react/no-unused-prop-types': 'off',
       'react/require-default-props': 'off',
       'react-hooks/exhaustive-deps': 'off',
-      // React Compiler is not enabled in this app. Surface its new diagnostics
-      // during the config migration without turning them into a refactor gate.
-      'react-hooks/immutability': 'warn',
-      'react-hooks/purity': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/static-components': 'warn',
     },
   },
   {
@@ -37,6 +30,15 @@ export default defineConfig([
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/ban-ts-comment': 'off',
       '@next/next/no-img-element': 'off',
+    },
+  },
+  {
+    files: ['*.config.{ts,mts,mjs}'],
+    // These files execute in Node, where ESM JavaScript imports need extensions.
+    rules: {
+      'import/extensions': ['warn', 'ignorePackages', {
+        js: 'always', mjs: 'always', ts: 'never',
+      }],
     },
   },
   globalIgnores([

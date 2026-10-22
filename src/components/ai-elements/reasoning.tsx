@@ -63,19 +63,15 @@ export const Reasoning = memo(
     });
 
     const [hasAutoClosed, setHasAutoClosed] = useState(false);
-    const [startTime, setStartTime] = useState<number | null>(null);
-
-    // Track duration when streaming starts and ends
+    // Measure the external stream's lifetime without mirroring its start time
+    // into render state. Cleanup records the duration when streaming stops.
     useEffect(() => {
-      if (isStreaming) {
-        if (startTime === null) {
-          setStartTime(Date.now());
-        }
-      } else if (startTime !== null) {
+      if (!isStreaming) return;
+      const startTime = Date.now();
+      return () => {
         setDuration(Math.ceil((Date.now() - startTime) / MS_IN_S));
-        setStartTime(null);
-      }
-    }, [isStreaming, startTime, setDuration]);
+      };
+    }, [isStreaming, setDuration]);
 
     // Auto-open when streaming starts, auto-close when streaming ends (once only)
     useEffect(() => {

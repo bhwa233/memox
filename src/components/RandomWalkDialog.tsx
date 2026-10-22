@@ -7,6 +7,7 @@ import {
   type ReactZoomPanPinchRef,
 } from 'react-zoom-pan-pinch';
 import { toBlob } from 'html-to-image';
+import { useRequest } from 'ahooks';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { MemoContent } from './MemoView/MemoView';
@@ -54,6 +55,7 @@ interface WalkMeta {
 }
 
 type Phase = 'loading' | 'error' | 'canvas';
+const EMPTY_WALK_NODES: WalkNode[] = [];
 
 // ── 布局常量（整齐树：根在左，向右分层，兄弟纵向铺开）──────
 const CARD_W = 230;
@@ -126,10 +128,6 @@ function computeLayout(nodes: WalkNode[]) {
 export function RandomWalkDialog() {
   const { open, startMemoId, runId, setOpen } = useWalkStore();
 
-  const [phase, setPhase] = useState<Phase>('loading');
-  const [error, setError] = useState<string | null>(null);
-  const [nodes, setNodes] = useState<WalkNode[]>([]);
-  const [meta, setMeta] = useState<WalkMeta | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   const [expandNode, setExpandNode] = useState<WalkNode | null>(null);
@@ -140,15 +138,8 @@ export function RandomWalkDialog() {
   const transformRef = useRef<ReactZoomPanPinchRef | null>(null);
   const postcardRef = useRef<HTMLDivElement | null>(null);
 
-  const fetchWalk = useCallback(async () => {
-    setPhase('loading');
-    setError(null);
-    setNodes([]);
-    setMeta(null);
-    setHoveredIndex(null);
-    setPostcardOpen(false);
-    setExpandNode(null);
-    try {
+  const { data, loading, error: walkError, refresh: fetchWalk } = useRequest(
+    async (): Promise<{ nodes: WalkNode[]; meta: WalkMeta }> => {
       const res = await fetch('/api/ai/walk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,19 +150,24 @@ export function RandomWalkDialog() {
       if (!data.nodes || data.nodes.length === 0) {
         throw new Error('没有可漫游的笔记');
       }
-      setNodes(data.nodes);
-      setMeta(data.meta);
-      startTimeRef.current = Date.now();
-      setPhase('canvas');
-    } catch (err: any) {
-      setError(err.message || '漫游失败');
-      setPhase('error');
-    }
-  }, [startMemoId]);
-
-  useEffect(() => {
-    if (open && runId > 0) fetchWalk();
-  }, [open, runId, fetchWalk]);
+      return data;
+    },
+    {
+      ready: open && runId > 0,
+      refreshDeps: [runId, startMemoId],
+      onBefore: () => {
+        setHoveredIndex(null);
+        setPostcardOpen(false);
+        setExpandNode(null);
+      },
+      onSuccess: () => { startTimeRef.current = Date.now(); },
+    },
+  );
+  const nodes = data?.nodes ?? EMPTY_WALK_NODES;
+  const meta = data?.meta ?? null;
+  const phase: Phase = loading || (!data && !walkError)
+    ? 'loading' : walkError ? 'error' : 'canvas';
+  const error = walkError?.message ?? '漫游失败';
 
   const close = useCallback(() => setOpen(false), [setOpen]);
 
