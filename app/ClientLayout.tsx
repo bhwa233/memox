@@ -8,6 +8,7 @@ import LeftSide from '@/components/LeftSide';
 import MemoFilter from '@/components/MemoFilter';
 import MobileHeader from '../src/components/MobileHeader';
 import Tools from '@/components/Tools';
+import OfflineMemoSync from '@/components/OfflineMemoSync';
 import useMemoStore from '@/store/memo';
 import useCountStore from '@/store/count';
 import { MemosCount, Note, TagWithCount } from '@/api/type';
@@ -70,6 +71,7 @@ export default function ClientLayout({ initial }: { initial: InitialData }) {
 
     return (
         <div className="flex flex-col md:flex-row max-w-[100vw] min-h-screen">
+            <OfflineMemoSync />
             <MobileHeader
                 onInsightClick={handleInsightClick}
                 isInsightLoading={isInsightLoading}

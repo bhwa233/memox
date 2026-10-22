@@ -3,7 +3,6 @@ import 'react-photo-view/dist/react-photo-view.css';
 import { Metadata, Viewport } from 'next';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/toaster';
-import OfflineMemoSync from '@/components/OfflineMemoSync';
 import OfflineStatus from '@/components/OfflineStatus';
 
 const APP_NAME = 'memos';
@@ -74,7 +73,6 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
-            <OfflineMemoSync />
             <OfflineStatus />
             <Toaster />
           </ThemeProvider>

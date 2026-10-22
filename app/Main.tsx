@@ -1,9 +1,7 @@
 'use client';
 import useMemoStore from '@/store/memo';
-import { useMount } from 'ahooks';
 import InfiniteScroll from 'react-infinite-scroll-component';
 import useConfigStore from '@/store/config';
-import useFilterStore from '@/store/filter';
 import WaterfallList from '../src/components/MemoView/WaterfallList';
 import { PhotoProvider } from 'react-photo-view';
 
@@ -20,17 +18,12 @@ function MemoSkeleton() {
 }
 
 export default function Main() {
-    const { memos = [], fetchInitData, fetchPagedData, databases, isLoading } = useMemoStore();
+    const { memos = [], fetchPagedData, databases, isLoading } = useMemoStore();
     const { config } = useConfigStore();
     const { isSimpleMode } = config.generalConfig;
 
-    useMount(() => {
-        // 首屏数据已由服务端注水（默认 filter）；鉴权由中间件负责。
-        // 仅当会话内存在非默认 filter（sessionStorage 恢复）时补拉一次以对齐视图。
-        if (useFilterStore.getState().hasFilter) {
-            fetchInitData();
-        }
-    });
+    // Initial filter restoration and cached-page recovery share one read in
+    // OfflineMemoSync, after server-data initialization and queue hydration.
 
     // 首次加载且暂无数据时显示骨架屏
     if (isLoading && memos.length === 0) {

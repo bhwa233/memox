@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 
 interface MemoStore {
     tags: TagWithCount[];
-    fetchTags: () => void;
+    fetchTags: () => Promise<void>;
     getCount: () => Promise<void>;
     memosCount: MemosCount;
     initializeWithServerData: (tags: TagWithCount[], counts: MemosCount) => void;
@@ -73,10 +73,9 @@ const useCountStore = create<MemoStore>()(
                 };
             });
         },
-        fetchTags: () => {
-            getTagsWithCountAction().then(tags => {
-                set({ tags });
-            });
+        fetchTags: async () => {
+            const tags = await getTagsWithCountAction();
+            set({ tags });
         },
         getCount: async () => {
             const result = await getCountAction();

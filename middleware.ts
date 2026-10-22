@@ -21,6 +21,6 @@ export function middleware(req: NextRequest) {
 // 放行：login、api、静态资源、service worker、manifest、图标
 export const config = {
   matcher: [
-    '/((?!login|api|_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|icons|.*\\.(?:png|jpg|jpeg|svg|ico|webmanifest)$).*)',
+    '/((?!login|api|_next/static|_next/image|favicon.ico|sw.js|offline\\.html|manifest.webmanifest|icons|.*\\.(?:png|jpg|jpeg|svg|ico|webmanifest)$).*)',
   ],
 };

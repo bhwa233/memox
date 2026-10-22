@@ -6,6 +6,8 @@ const withSerwist = withSerwistInit({
     // use something else that works, such as "service-worker/index.ts".
     swSrc: "app/sw.ts",
     swDest: "public/sw.js",
+    // Reconnect through the data sync layer without restarting the whole app.
+    reloadOnOnline: false,
     // 在非生产环境中禁用 Serwist，避免与 Turbopack 冲突
     disable: process.env.NODE_ENV !== "production",
 });
